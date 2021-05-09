@@ -1,0 +1,176 @@
+public class DashboardActivity extends AppCompatActivity implements WebServiceListener {
+ ServerRequests serverRequests;
+ FragmentManager fragManager;
+ BottomNavigationView btmNav;
+ TextView title;
+ ImageView logout;
+ @Override
+ protected void onCreate(Bundle savedInstanceState) {
+ super.onCreate(savedInstanceState);
+ setContentView(R.layout.activity_dashboard);
+ serverRequests = new ServerRequests(this,this);
+ fragManager = getSupportFragmentManager();
+ initViews();
+ Bundle bundle = getIntent().getExtras();
+ if(bundle!=null) {
+ btmNav.setSelectedItemId(bundle.getInt("launchFrag"));
+ }else {
+ loadFragment(new HomeFragment());
+ }
+}
+ private void initViews() {
+ btmNav = findViewById(R.id.btmNav);
+ title = findViewById(R.id.title);
+ logout = findViewById(R.id.logout);
+ logout.setOnClickListener(new View.OnClickListener() {
+ @Override
+ public void onClick(View view) {
+ userPreference.logout();
+ startActivity(new Intent(DashboardActivity.this,SplashActivity.class)
+ .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK));
+ }
+ });
+ btmNav.setOnNavigationItemSelectedListener(new
+BottomNavigationView.OnNavigationItemSelectedListener() {
+ @Override
+ public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+ switch (item.getItemId()){
+ case R.id.home: loadFragment(new HomeFragment());
+ break;
+case R.id.appointment: loadFragment(new AppointmentsFragment());
+ break;
+ case R.id.medicine: loadFragment(new MedicineFragment());
+ break;
+case R.id.history: loadFragment(new HistoryFragment());
+ break;
+case R.id.profile: loadFragment(new ProfileFragment());
+ break;
+ }
+ return true;
+ }
+ });
+ }
+ public void UpdateTitle(String titleString){
+ title.setText(titleString);
+ }
+ public void CoronaUpdate() {
+ serverRequests.GetCall(getString(R.string.corona_initial_data),RequestTypes.CORONA);
+ }
+ public boolean loadFragment(Fragment fragment) {
+ //switching fragment
+ if (fragment != null) {
+ fragManager.beginTransaction()
+ .replace(R.id.fragmentMain, fragment)
+.commit();
+ return true;
+ }
+ return false;
+ }
+ @Override
+ public void Success(JSONObject responseJSON, RequestTypes requestTypes) {
+GsonBuilder builder = new GsonBuilder();
+ Gson gson = builder.create();
+ if(requestTypes == RequestTypes.CORONA){
+ try {
+ ArrayList<StateWiseListModel> swnList = new ArrayList<>();
+ JSONArray json = responseJSON.getJSONArray("statewise");
+ swnList = gson.fromJson(json.toString(), new
+TypeToken<ArrayList<StateWiseListModel>>(){}.getType());
+ StateWiseListModel stateWiseListModel = swnList.get(0);
+ tConfirm = stateWiseListModel.getConfirmed();
+ tActive = stateWiseListModel.getActive();
+ tRecovered = stateWiseListModel.getRecovered();
+ tDeceased = stateWiseListModel.getDeaths();
+ dConfirm = stateWiseListModel.getDeltaconfirmed();
+ dActive = "0";
+ dRecovered = stateWiseListModel.getDeltarecovered();
+ dDeceased = stateWiseListModel.getDeltadeaths();
+ }catch (JSONException e){
+ e.printStackTrace();
+ }finally {
+ try {
+ HomeFragment fragment = (HomeFragment)
+fragManager.findFragmentById(R.id.fragmentMain);
+ fragment.updateList();
+ }catch (Exception e){
+ //Note : Exception Handler which may occur sometimes while switching
+pages using Bottom Navigation
+ }
+ }
+ }else if(requestTypes == RequestTypes.AppointmentCheck){
+ try{
+ HomeFragment fragment = (HomeFragment)
+fragManager.findFragmentById(R.id.fragmentMain);
+ fragment.updateAppointments(responseJSON);
+ }catch (Exception e){
+ //Note : Exception Handler which may occur sometimes while switching pages
+using Bottom Navigation
+ }
+ }else if(requestTypes == RequestTypes.CancelAppointment){
+ try{
+ HomeFragment fragment = (HomeFragment)
+fragManager.findFragmentById(R.id.fragmentMain);
+ fragment.CheckAppointments();
+ }catch (Exception e){
+ //Note : Exception Handler which may occur sometimes while switching pages
+using Bottom Navigation
+ }
+ }else if(requestTypes == RequestTypes.GetDepDoc){
+ try{
+ AppointmentsFragment fragment = (AppointmentsFragment)
+fragManager.findFragmentById(R.id.fragmentMain);
+ fragment.GetDoctors(responseJSON);
+ }catch (Exception e){
+ //Note : Exception Handler which may occur sometimes while switching pages
+using Bottom Navigation
+ }
+}else if(requestTypes == RequestTypes.BookAppointment){
+ try{
+ AppointmentsFragment fragment = (AppointmentsFragment)
+fragManager.findFragmentById(R.id.fragmentMain);
+ if(responseJSON.getString("response").equalsIgnoreCase("success")) {
+ Appointment appointment =
+gson.fromJson(responseJSON.getJSONObject("data").toString(), Appointment.class);
+ fragment.updateChip(true, appointment);
+ }else{
+ fragment.updateChip(false, null);
+ }
+ }catch (Exception e){
+ //Note : Exception Handler which may occur sometimes while switching pages
+using Bottom Navigation
+ }
+ }else if(requestTypes == RequestTypes.GetMedications){
+ try{
+ MedicineFragment medicineFragment = (MedicineFragment)
+fragManager.findFragmentById(R.id.fragmentMain);
+ medicineFragment.updateData(responseJSON);
+ }catch (Exception e){
+ e.printStackTrace();
+ }
+ }else if(requestTypes == RequestTypes.AppointmentHistoryCheck){
+ try{
+ HistoryFragment fragment = (HistoryFragment)
+fragManager.findFragmentById(R.id.fragmentMain);
+ fragment.updateAppointments(responseJSON);
+ }catch (Exception e){
+ //Note : Exception Handler which may occur sometimes while switching pages
+using Bottom Navigation
+ }
+ }
+ }
+ @Override
+ public void Failed(JSONException reason, RequestTypes requestTypes) {
+ Snackbar.make(getWindow().getDecorView().getRootView(), "Client Parse
+Error!@!(404)", Snackbar.LENGTH_LONG).show();
+ }
+ @Override
+ public void Error(VolleyError error) {
+ if (error instanceof TimeoutError || error instanceof NoConnectionError) {
+ Snackbar.make(getWindow().getDecorView().getRootView(), "Check Internet
+Connectivity!", Snackbar.LENGTH_LONG).show();
+ }else{
+ Snackbar.make(getWindow().getDecorView().getRootView(), "There was an error
+performing the request!!!(500)", Snackbar.LENGTH_LONG).show();
+ }
+ }
+}
